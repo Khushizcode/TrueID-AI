@@ -1,32 +1,66 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { getHistory } from "../services/api";
 
-function History({ onNavigate }) {
-  const screenings = [
-    {
-      id: "SCR-1003",
-      name: "Ankit Singh",
-      document: "Driving License",
-      risk: "MEDIUM",
-      status: "Review",
-      date: "Today, 10:42 AM",
-    },
-    {
-      id: "SCR-1002",
-      name: "Priya Verma",
-      document: "Passport",
-      risk: "LOW",
-      status: "Verified",
-      date: "Yesterday, 04:18 PM",
-    },
-    {
-      id: "SCR-1001",
-      name: "Rahul Sharma",
-      document: "Aadhaar",
-      risk: "LOW",
-      status: "Verified",
-      date: "28 Sep 2026, 11:32 AM",
-    },
-  ];
+function formatDate(value) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function statusLabel(status) {
+  if (status === "VERIFIED") return "Verified";
+  if (status === "REVIEW") return "Review";
+  if (status === "REJECTED") return "Rejected";
+  return status || "Unknown";
+}
+
+function History({ onNavigate, onViewScreening }) {
+  const [screenings, setScreenings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    getHistory()
+      .then((data) => {
+        if (active) setScreenings(data || []);
+      })
+      .catch((err) => {
+        if (active) setError(err.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const total = screenings.length;
+  const verified = screenings.filter(
+    (item) => item.status === "VERIFIED"
+  ).length;
+  const flagged = total - verified;
+
+  const openScreening = (screening) => {
+    if (onViewScreening) {
+      onViewScreening(screening);
+    } else {
+      onNavigate("result");
+    }
+  };
 
   return (
     <div className="history-page">
@@ -81,7 +115,7 @@ function History({ onNavigate }) {
 
           <div className="summary-card">
             <span className="summary-number">
-              152
+              {total}
             </span>
 
             <span className="summary-label">
@@ -91,7 +125,7 @@ function History({ onNavigate }) {
 
           <div className="summary-card">
             <span className="summary-number verified-number">
-              118
+              {verified}
             </span>
 
             <span className="summary-label">
@@ -101,7 +135,7 @@ function History({ onNavigate }) {
 
           <div className="summary-card">
             <span className="summary-number review-number">
-              24
+              {flagged}
             </span>
 
             <span className="summary-label">
@@ -127,14 +161,33 @@ function History({ onNavigate }) {
           </div>
 
 
+          {loading && (
+            <p style={{ textAlign: "center", padding: "24px", opacity: 0.7 }}>
+              Loading screenings...
+            </p>
+          )}
+
+          {!loading && error && (
+            <p style={{ textAlign: "center", padding: "24px", color: "#b91c1c" }}>
+              {error}
+            </p>
+          )}
+
+          {!loading && !error && screenings.length === 0 && (
+            <p style={{ textAlign: "center", padding: "24px", opacity: 0.7 }}>
+              No screenings yet. Start a new screening to see it here.
+            </p>
+          )}
+
+
           <div className="history-list">
 
             {screenings.map((screening) => (
 
               <button
                 className="history-item"
-                key={screening.id}
-                onClick={() => onNavigate("result")}
+                key={screening.screeningId}
+                onClick={() => openScreening(screening)}
               >
 
                 {/* Document icon */}
@@ -149,11 +202,11 @@ function History({ onNavigate }) {
                   <div className="history-name-row">
 
                     <h4>
-                      {screening.name}
+                      {screening.documentType}
                     </h4>
 
                     <span
-                      className={`risk-badge risk-${screening.risk.toLowerCase()}`}
+                      className={`risk-badge risk-${(screening.risk || "low").toLowerCase()}`}
                     >
                       {screening.risk}
                     </span>
@@ -161,11 +214,11 @@ function History({ onNavigate }) {
                   </div>
 
                   <p>
-                    {screening.document}
+                    {screening.purpose || "Identity screening"}
                   </p>
 
                   <span className="history-date">
-                    {screening.id} • {screening.date}
+                    {screening.screeningId} • {formatDate(screening.createdAt)}
                   </span>
 
                 </div>
@@ -175,11 +228,11 @@ function History({ onNavigate }) {
                 <div className="history-item-status">
 
                   <span
-                    className={`status-dot status-${screening.status.toLowerCase()}`}
+                    className={`status-dot status-${(screening.status || "").toLowerCase()}`}
                   ></span>
 
                   <span>
-                    {screening.status}
+                    {statusLabel(screening.status)}
                   </span>
 
                   <span className="history-arrow">

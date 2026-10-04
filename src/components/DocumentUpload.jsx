@@ -1,14 +1,31 @@
 import React, { useRef, useState } from "react";
+import { createScreening } from "../services/api";
 
-function DocumentUpload({ documentType = "Aadhaar", onNavigate }) {
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+function DocumentUpload({
+  documentType = "Aadhaar",
+  purpose = "Identity Verification",
+  onNavigate,
+  onComplete,
+}) {
   const fileInputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleFileSelect = (event) => {
     const file = event.target.files?.[0];
 
     if (!file) return;
 
+    if (file.size > MAX_FILE_SIZE) {
+      setSelectedFile(null);
+      setError("File is too large. Maximum size is 5 MB.");
+      return;
+    }
+
+    setError("");
     setSelectedFile(file);
   };
 
@@ -16,10 +33,25 @@ function DocumentUpload({ documentType = "Aadhaar", onNavigate }) {
     fileInputRef.current?.click();
   };
 
-  const handleContinue = () => {
-    if (!selectedFile) return;
+  const handleContinue = async () => {
+    if (!selectedFile || loading) return;
 
-    onNavigate("result");
+    setError("");
+    setLoading(true);
+
+    try {
+      const result = await createScreening({
+        documentType,
+        purpose,
+        file: selectedFile,
+      });
+
+      onComplete(result);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -120,6 +152,13 @@ function DocumentUpload({ documentType = "Aadhaar", onNavigate }) {
 
           </button>
 
+          {error && (
+            <div className="camera-error">
+              <span>!</span>
+              <p>{error}</p>
+            </div>
+          )}
+
         </section>
 
 
@@ -171,11 +210,11 @@ function DocumentUpload({ documentType = "Aadhaar", onNavigate }) {
 
           <button
             className="continue-screening-button"
-            disabled={!selectedFile}
+            disabled={!selectedFile || loading}
             onClick={handleContinue}
           >
             <span>
-              CONTINUE SCREENING
+              {loading ? "ANALYZING..." : "CONTINUE SCREENING"}
             </span>
 
             <span className="continue-arrow">

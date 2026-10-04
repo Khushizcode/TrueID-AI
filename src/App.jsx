@@ -57,6 +57,8 @@ function App() {
     purpose: "Identity Verification",
   });
 
+  const [currentResult, setCurrentResult] = useState(null);
+
   useEffect(() => {
     if (!isLoggedIn) {
       if (
@@ -72,6 +74,7 @@ function App() {
   useEffect(() => {
     const onForcedLogout = () => {
       setIsLoggedIn(false);
+      setCurrentResult(null);
       setCurrentPage("welcome");
     };
 
@@ -103,6 +106,7 @@ function App() {
     clearSession();
 
     setIsLoggedIn(false);
+    setCurrentResult(null);
 
     setCurrentPage("welcome");
   };
@@ -121,6 +125,12 @@ function App() {
       ...previousData,
       ...data,
     }));
+  };
+
+  // Called after a screening finishes, or when a history record is opened
+  const showResult = (result) => {
+    setCurrentResult(result);
+    setCurrentPage("result");
   };
 
   /*
@@ -194,7 +204,9 @@ function App() {
     return (
       <DocumentUpload
         documentType={screeningData.documentType}
+        purpose={screeningData.purpose}
         onNavigate={goToPage}
+        onComplete={showResult}
       />
     );
   }
@@ -203,7 +215,9 @@ function App() {
     return (
       <CameraScanner
         documentType={screeningData.documentType}
+        purpose={screeningData.purpose}
         onNavigate={goToPage}
+        onComplete={showResult}
       />
     );
   }
@@ -212,7 +226,7 @@ function App() {
     return (
       <Result
         onNavigate={goToPage}
-        screeningData={screeningData}
+        result={currentResult}
       />
     );
   }
@@ -221,6 +235,7 @@ function App() {
     return (
       <History
         onNavigate={goToPage}
+        onViewScreening={showResult}
       />
     );
   }
