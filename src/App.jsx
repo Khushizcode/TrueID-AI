@@ -14,6 +14,8 @@ import Result from "./pages/Result";
 import DocumentUpload from "./components/DocumentUpload";
 import CameraScanner from "./components/CameraScanner";
 
+import { clearSession } from "./services/api";
+
 import "./App.css";
 
 function getSavedUser() {
@@ -55,6 +57,8 @@ function App() {
     purpose: "Identity Verification",
   });
 
+  const [currentResult, setCurrentResult] = useState(null);
+
   useEffect(() => {
     if (!isLoggedIn) {
       if (
@@ -66,6 +70,19 @@ function App() {
       }
     }
   }, [isLoggedIn, currentPage]);
+
+  useEffect(() => {
+    const onForcedLogout = () => {
+      setIsLoggedIn(false);
+      setCurrentResult(null);
+      setCurrentPage("welcome");
+    };
+
+    window.addEventListener("trueid-logout", onForcedLogout);
+
+    return () =>
+      window.removeEventListener("trueid-logout", onForcedLogout);
+  }, []);
 
   const goToPage = (page) => {
     setCurrentPage(page);
@@ -86,9 +103,10 @@ function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("trueid_logged_in");
+    clearSession();
 
     setIsLoggedIn(false);
+    setCurrentResult(null);
 
     setCurrentPage("welcome");
   };
@@ -107,6 +125,12 @@ function App() {
       ...previousData,
       ...data,
     }));
+  };
+
+  // Called after a screening finishes, or when a history record is opened
+  const showResult = (result) => {
+    setCurrentResult(result);
+    setCurrentPage("result");
   };
 
   /*
@@ -180,7 +204,9 @@ function App() {
     return (
       <DocumentUpload
         documentType={screeningData.documentType}
+        purpose={screeningData.purpose}
         onNavigate={goToPage}
+        onComplete={showResult}
       />
     );
   }
@@ -189,7 +215,9 @@ function App() {
     return (
       <CameraScanner
         documentType={screeningData.documentType}
+        purpose={screeningData.purpose}
         onNavigate={goToPage}
+        onComplete={showResult}
       />
     );
   }
@@ -198,7 +226,7 @@ function App() {
     return (
       <Result
         onNavigate={goToPage}
-        screeningData={screeningData}
+        result={currentResult}
       />
     );
   }
@@ -207,6 +235,7 @@ function App() {
     return (
       <History
         onNavigate={goToPage}
+        onViewScreening={showResult}
       />
     );
   }

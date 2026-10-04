@@ -1,51 +1,78 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { getReports } from "../services/api";
+
+const emptyReport = {
+  totalScreenings: 0,
+  verified: 0,
+  review: 0,
+  rejected: 0,
+  verificationRate: 0,
+  averageConfidence: 0,
+  riskLevels: { low: 0, medium: 0, high: 0 },
+  byDocumentType: {},
+  recentScreenings: [],
+};
 
 function Reports({ onNavigate }) {
+  const [report, setReport] = useState(emptyReport);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    getReports()
+      .then((data) => {
+        if (!active) return;
+
+        setReport({
+          ...emptyReport,
+          ...(data || {}),
+          riskLevels: {
+            ...emptyReport.riskLevels,
+            ...((data && data.riskLevels) || {}),
+          },
+          byDocumentType: (data && data.byDocumentType) || {},
+        });
+      })
+      .catch((err) => {
+        if (active) setError(err.message);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const flagged = report.review + report.rejected;
+
   const stats = [
     {
       label: "Total Screenings",
-      value: "152",
-      change: "+12%",
+      value: report.totalScreenings,
     },
     {
       label: "Verified",
-      value: "118",
-      change: "+8%",
+      value: report.verified,
     },
     {
       label: "Under Review",
-      value: "24",
-      change: "+4%",
+      value: flagged,
     },
     {
       label: "High Risk",
-      value: "10",
-      change: "-2%",
+      value: report.riskLevels.high,
     },
   ];
 
-  const documentStats = [
-    {
-      name: "Aadhaar",
-      count: 78,
-      percentage: 51,
-    },
-    {
-      name: "Passport",
-      count: 34,
-      percentage: 22,
-    },
-    {
-      name: "Driving License",
-      count: 26,
-      percentage: 17,
-    },
-    {
-      name: "Voter ID",
-      count: 14,
-      percentage: 10,
-    },
-  ];
+  const documentStats = Object.entries(report.byDocumentType).map(
+    ([name, count]) => ({
+      name,
+      count,
+      percentage: report.totalScreenings
+        ? Math.round((count * 100) / report.totalScreenings)
+        : 0,
+    })
+  );
 
   return (
     <div className="reports-page">
@@ -95,6 +122,13 @@ function Reports({ onNavigate }) {
         </section>
 
 
+        {error && (
+          <p style={{ textAlign: "center", padding: "12px", color: "#b91c1c" }}>
+            {error}
+          </p>
+        )}
+
+
         {/* Statistics */}
         <section className="report-stats-grid">
 
@@ -112,14 +146,8 @@ function Reports({ onNavigate }) {
                 {stat.value}
               </strong>
 
-              <span
-                className={`report-stat-change ${
-                  stat.change.startsWith("-")
-                    ? "negative"
-                    : ""
-                }`}
-              >
-                {stat.change} this month
+              <span className="report-stat-change">
+                All time
               </span>
 
             </div>
@@ -139,7 +167,7 @@ function Reports({ onNavigate }) {
             </div>
 
             <span className="report-period">
-              This month
+              All time
             </span>
 
           </div>
@@ -152,7 +180,7 @@ function Reports({ onNavigate }) {
               <div className="chart-circle">
 
                 <div className="chart-circle-inner">
-                  <strong>78%</strong>
+                  <strong>{report.verificationRate}%</strong>
                   <span>Verified</span>
                 </div>
 
@@ -168,7 +196,7 @@ function Reports({ onNavigate }) {
 
                 <div>
                   <strong>Verified</strong>
-                  <p>118 screenings</p>
+                  <p>{report.verified} screenings</p>
                 </div>
               </div>
 
@@ -178,7 +206,7 @@ function Reports({ onNavigate }) {
 
                 <div>
                   <strong>Under Review</strong>
-                  <p>24 screenings</p>
+                  <p>{flagged} screenings</p>
                 </div>
               </div>
 
@@ -188,7 +216,7 @@ function Reports({ onNavigate }) {
 
                 <div>
                   <strong>High Risk</strong>
-                  <p>10 screenings</p>
+                  <p>{report.riskLevels.high} screenings</p>
                 </div>
               </div>
 
@@ -213,6 +241,12 @@ function Reports({ onNavigate }) {
 
 
           <div className="document-distribution">
+
+            {documentStats.length === 0 && (
+              <p style={{ padding: "12px", opacity: 0.7 }}>
+                No screenings yet.
+              </p>
+            )}
 
             {documentStats.map((document) => (
               <div
@@ -278,7 +312,7 @@ function Reports({ onNavigate }) {
 
               <div>
                 <span>LOW RISK</span>
-                <strong>118</strong>
+                <strong>{report.riskLevels.low}</strong>
                 <p>Screenings</p>
               </div>
 
@@ -293,7 +327,7 @@ function Reports({ onNavigate }) {
 
               <div>
                 <span>MEDIUM RISK</span>
-                <strong>24</strong>
+                <strong>{report.riskLevels.medium}</strong>
                 <p>Screenings</p>
               </div>
 
@@ -308,7 +342,7 @@ function Reports({ onNavigate }) {
 
               <div>
                 <span>HIGH RISK</span>
-                <strong>10</strong>
+                <strong>{report.riskLevels.high}</strong>
                 <p>Screenings</p>
               </div>
 

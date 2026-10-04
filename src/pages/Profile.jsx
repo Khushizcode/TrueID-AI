@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { updateProfile, getReports } from "../services/api";
 
 function Profile({
   onNavigate,
@@ -23,25 +24,74 @@ function Profile({
   const [message, setMessage] =
     useState("");
 
-  const handleSave = () => {
-    const updatedUser = {
-      ...user,
-      name,
-      email,
-      organization,
+  const [error, setError] = useState("");
+
+  const [saving, setSaving] = useState(false);
+
+  const [stats, setStats] = useState({
+    total: 0,
+    verified: 0,
+    flagged: 0,
+    high: 0,
+  });
+
+  useEffect(() => {
+    let active = true;
+
+    getReports()
+      .then((data) => {
+        if (!active || !data) return;
+
+        setStats({
+          total: data.totalScreenings || 0,
+          verified: data.verified || 0,
+          flagged: (data.review || 0) + (data.rejected || 0),
+          high: (data.riskLevels && data.riskLevels.high) || 0,
+        });
+      })
+      .catch(() => {
+        // Stats stay at zero if the report cannot be loaded
+      });
+
+    return () => {
+      active = false;
     };
+  }, []);
 
-    onUpdateProfile(updatedUser);
+  const handleSave = async () => {
+    if (!name.trim()) {
+      setError("Name cannot be empty.");
+      return;
+    }
 
-    setEditMode(false);
+    setError("");
+    setSaving(true);
 
-    setMessage(
-      "Profile updated successfully."
-    );
+    try {
+      const updatedUser = await updateProfile(
+        name,
+        organization
+      );
 
-    setTimeout(() => {
-      setMessage("");
-    }, 2500);
+      onUpdateProfile(updatedUser);
+
+      setName(updatedUser.name || "");
+      setOrganization(updatedUser.organization || "");
+
+      setEditMode(false);
+
+      setMessage(
+        "Profile updated successfully."
+      );
+
+      setTimeout(() => {
+        setMessage("");
+      }, 2500);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -51,6 +101,7 @@ function Profile({
       user?.organization || ""
     );
 
+    setError("");
     setEditMode(false);
   };
 
@@ -130,6 +181,16 @@ function Profile({
           </div>
         )}
 
+        {error && (
+          <div
+            className="profile-success-message"
+            style={{ color: "#b91c1c" }}
+          >
+            <span>!</span>
+            {error}
+          </div>
+        )}
+
 
         {editMode ? (
 
@@ -176,17 +237,13 @@ function Profile({
               <div className="profile-edit-field">
 
                 <label>
-                  Email address
+                  Email address (cannot be changed)
                 </label>
 
                 <input
                   type="email"
                   value={email}
-                  onChange={(event) =>
-                    setEmail(
-                      event.target.value
-                    )
-                  }
+                  disabled
                 />
 
               </div>
@@ -223,8 +280,9 @@ function Profile({
                 <button
                   className="profile-save-button"
                   onClick={handleSave}
+                  disabled={saving}
                 >
-                  SAVE CHANGES
+                  {saving ? "SAVING..." : "SAVE CHANGES"}
                 </button>
 
               </div>
@@ -358,7 +416,7 @@ function Profile({
                 ▣
               </span>
 
-              <strong>152</strong>
+              <strong>{stats.total}</strong>
 
               <p>
                 Total screenings
@@ -371,7 +429,7 @@ function Profile({
                 ✓
               </span>
 
-              <strong>118</strong>
+              <strong>{stats.verified}</strong>
 
               <p>
                 Verified
@@ -384,7 +442,7 @@ function Profile({
                 !
               </span>
 
-              <strong>24</strong>
+              <strong>{stats.flagged}</strong>
 
               <p>
                 Under review
@@ -397,7 +455,7 @@ function Profile({
                 ⚡
               </span>
 
-              <strong>10</strong>
+              <strong>{stats.high}</strong>
 
               <p>
                 High risk

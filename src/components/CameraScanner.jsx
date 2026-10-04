@@ -1,16 +1,27 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createScreening } from "../services/api";
 
-function CameraScanner({ documentType = "Aadhaar", onNavigate }) {
+function CameraScanner({
+  documentType = "Aadhaar",
+  purpose = "Identity Verification",
+  onNavigate,
+  onComplete,
+}) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [captured, setCaptured] = useState(false);
+  const [capturedFile, setCapturedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
 
   const startCamera = async () => {
     try {
       setCameraError("");
+      setVideoReady(false);
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -20,10 +31,6 @@ function CameraScanner({ documentType = "Aadhaar", onNavigate }) {
       });
 
       streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
 
       setCameraActive(true);
     } catch (error) {
@@ -49,21 +56,99 @@ function CameraScanner({ documentType = "Aadhaar", onNavigate }) {
     setCameraActive(false);
   };
 
-  const captureDocument = () => {
-    if (!cameraActive) return;
+  // The video element only exists after the camera becomes active,
+  // so the stream is attached here.
+  useEffect(() => {
+    if (cameraActive && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [cameraActive]);
 
-    setCaptured(true);
-    stopCamera();
+   const captureDocument = () => {
+    const video = videoRef.current;
+
+    if (!cameraActive || !video || !video.videoWidth) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Reject a black frame (camera not ready yet)
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let total = 0;
+    let count = 0;
+
+    for (let i = 0; i < pixels.length; i += 800) {
+      total += pixels[i] + pixels[i + 1] + pixels[i + 2];
+      count += 3;
+    }
+
+    if (count === 0 || total / count < 8) {
+      setCameraError(
+        "The captured image is black. Wait until the live picture appears, then try again."
+      );
+      return;
+    }
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setCameraError("Could not capture the image. Please try again.");
+          return;
+        }
+
+        const file = new File([blob], "camera-capture.jpg", {
+          type: "image/jpeg",
+        });
+
+        setCapturedFile(file);
+        setPreviewUrl(URL.createObjectURL(blob));
+        setCaptured(true);
+        stopCamera();
+      },
+      "image/jpeg",
+      0.92
+    );
   };
 
   const retakeDocument = () => {
     setCaptured(false);
+    setCapturedFile(null);
+    setPreviewUrl("");
     startCamera();
   };
 
-  const continueScreening = () => {
-    onNavigate("result");
+  const continueScreening = async () => {
+    if (!capturedFile || loading) return;
+
+    setCameraError("");
+    setLoading(true);
+
+    try {
+      const result = await createScreening({
+        documentType,
+        purpose,
+        file: capturedFile,
+      });
+
+      onComplete(result);
+    } catch (err) {
+      setCameraError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   useEffect(() => {
     return () => {
@@ -134,21 +219,15 @@ function CameraScanner({ documentType = "Aadhaar", onNavigate }) {
             {captured ? (
               <div className="captured-preview">
 
-                <div className="captured-document">
-                  <div className="captured-document-top">
-                    DOCUMENT CAPTURED
-                  </div>
-
-                  <div className="captured-document-body">
-                    <div className="fake-photo"></div>
-
-                    <div className="fake-lines">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
-                  </div>
-                </div>
+                <img
+                  src={previewUrl}
+                  alt="Captured document"
+                  style={{
+                    width: "100%",
+                    borderRadius: "16px",
+                    display: "block",
+                  }}
+                />
 
                 <div className="capture-success">
                   ✓ Document captured
@@ -162,6 +241,7 @@ function CameraScanner({ documentType = "Aadhaar", onNavigate }) {
                   autoPlay
                   playsInline
                   muted
+                  onPlaying={() => setTimeout(() => setVideoReady(true), 800)}
                   className="camera-video"
                 />
 
@@ -225,6 +305,7 @@ function CameraScanner({ documentType = "Aadhaar", onNavigate }) {
               <button
                 className="capture-button"
                 onClick={captureDocument}
+                disabled={!videoReady}
                 aria-label="Capture document"
               >
                 <span></span>
@@ -245,6 +326,7 @@ function CameraScanner({ documentType = "Aadhaar", onNavigate }) {
               <button
                 className="retake-button"
                 onClick={retakeDocument}
+                disabled={loading}
               >
                 RETAKE
               </button>
@@ -252,9 +334,10 @@ function CameraScanner({ documentType = "Aadhaar", onNavigate }) {
               <button
                 className="continue-screening-button"
                 onClick={continueScreening}
+                disabled={loading}
               >
                 <span>
-                  CONTINUE
+                  {loading ? "ANALYZING..." : "CONTINUE"}
                 </span>
 
                 <span className="continue-arrow">

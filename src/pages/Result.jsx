@@ -1,16 +1,101 @@
 import React from "react";
 
-function Result({ onNavigate }) {
-  const result = {
-    status: "VERIFIED",
-    risk: "LOW",
-    confidence: 96,
-    nameMatch: true,
-    documentValid: true,
-    riskIndicators: [],
-  };
+function formatDate(value) {
+  if (!value) return "Just now";
 
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "Just now";
+
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function Result({ onNavigate, result }) {
+  if (!result) {
+    return (
+      <div className="result-page">
+
+        <header className="inner-page-header">
+
+          <button
+            className="back-button"
+            onClick={() => onNavigate("overview")}
+            aria-label="Go back"
+          >
+            ←
+          </button>
+
+          <div>
+            <p className="header-label">TRUEID AI</p>
+            <h1>Screening Result</h1>
+          </div>
+
+          <div className="header-placeholder"></div>
+
+        </header>
+
+        <main className="result-content">
+
+          <section className="no-risk-card">
+
+            <div className="no-risk-icon">
+              !
+            </div>
+
+            <div>
+              <h4>No result to show</h4>
+              <p>
+                Start a new screening or open a record
+                from your history.
+              </p>
+            </div>
+
+          </section>
+
+          <section className="result-actions">
+
+            <button
+              className="primary-result-button"
+              onClick={() => onNavigate("newScreening")}
+            >
+              <span>NEW SCREENING</span>
+              <span>→</span>
+            </button>
+
+            <button
+              className="secondary-result-button"
+              onClick={() => onNavigate("history")}
+            >
+              VIEW SCREENING HISTORY
+            </button>
+
+          </section>
+
+        </main>
+
+      </div>
+    );
+  }
+
+  const indicators = result.riskIndicators || [];
   const isVerified = result.status === "VERIFIED";
+  const riskIsLow = result.risk === "LOW";
+
+  let statusMessage = "The document requires additional review.";
+
+  if (result.status === "VERIFIED") {
+    statusMessage =
+      "The identity document passed the current screening checks.";
+  } else if (result.status === "REJECTED") {
+    statusMessage =
+      "The identity document failed the screening checks.";
+  }
 
   return (
     <div className="result-page">
@@ -59,10 +144,7 @@ function Result({ onNavigate }) {
           </h2>
 
           <p>
-            {isVerified
-              ? "The identity document passed the current screening checks."
-              : "The document requires additional review."
-            }
+            {statusMessage}
           </p>
 
         </section>
@@ -123,7 +205,9 @@ function Result({ onNavigate }) {
               <div className="verification-details">
                 <h4>Name match</h4>
                 <p>
-                  Identity details match the provided information.
+                  {result.nameMatch
+                    ? "Identity details match the provided information."
+                    : "Identity details could not be matched."}
                 </p>
               </div>
 
@@ -150,7 +234,9 @@ function Result({ onNavigate }) {
               <div className="verification-details">
                 <h4>Document validity</h4>
                 <p>
-                  Document structure passed the current checks.
+                  {result.documentValid
+                    ? "Document structure passed the current checks."
+                    : "Document structure did not pass all checks."}
                 </p>
               </div>
 
@@ -171,17 +257,25 @@ function Result({ onNavigate }) {
             <div className="verification-item">
 
               <div className="verification-icon">
-                ✓
+                {indicators.length === 0 ? "✓" : "!"}
               </div>
 
               <div className="verification-details">
                 <h4>Risk analysis</h4>
                 <p>
-                  No significant risk indicators were detected.
+                  {indicators.length === 0
+                    ? "No significant risk indicators were detected."
+                    : `${indicators.length} risk indicator(s) were detected.`}
                 </p>
               </div>
 
-              <span className="check-status success">
+              <span
+                className={
+                  riskIsLow
+                    ? "check-status success"
+                    : "check-status warning"
+                }
+              >
                 {result.risk}
               </span>
 
@@ -209,7 +303,7 @@ function Result({ onNavigate }) {
           </div>
 
 
-          {result.riskIndicators.length === 0 ? (
+          {indicators.length === 0 ? (
             <div className="no-risk-card">
 
               <div className="no-risk-icon">
@@ -227,13 +321,17 @@ function Result({ onNavigate }) {
             </div>
           ) : (
             <div className="risk-list">
-              {result.riskIndicators.map((indicator, index) => (
+              {indicators.map((indicator, index) => (
                 <div
                   className="risk-list-item"
-                  key={index}
+                  key={`${indicator.code}-${index}`}
                 >
                   <span>!</span>
-                  <p>{indicator}</p>
+                  <p>
+                    <strong>{indicator.severity}</strong>
+                    {" - "}
+                    {indicator.message}
+                  </p>
                 </div>
               ))}
             </div>
@@ -257,22 +355,22 @@ function Result({ onNavigate }) {
 
             <div className="info-item">
               <span>Screening ID</span>
-              <strong>SCR-1004</strong>
+              <strong>{result.screeningId}</strong>
             </div>
 
             <div className="info-item">
               <span>Document</span>
-              <strong>Aadhaar</strong>
+              <strong>{result.documentType}</strong>
             </div>
 
             <div className="info-item">
               <span>Purpose</span>
-              <strong>Identity Verification</strong>
+              <strong>{result.purpose || "-"}</strong>
             </div>
 
             <div className="info-item">
               <span>Screened</span>
-              <strong>Just now</strong>
+              <strong>{formatDate(result.createdAt)}</strong>
             </div>
 
           </div>

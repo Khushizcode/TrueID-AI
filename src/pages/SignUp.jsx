@@ -1,53 +1,40 @@
 import React, { useState } from "react";
+import { signup, saveSession } from "../services/api";
 
 function SignUp({ onNavigate, onLogin }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [organization, setOrganization] =
-    useState("");
+  const [organization, setOrganization] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] =
-    useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (
-      !name ||
-      !email ||
-      !organization ||
-      !password
-    ) {
+    if (!name || !email || !organization || !password) {
       setError("Please fill in all fields.");
       return;
     }
 
     if (password.length < 6) {
-      setError(
-        "Password must contain at least 6 characters."
-      );
+      setError("Password must contain at least 6 characters.");
       return;
     }
 
-    const user = {
-      name,
-      email,
-      role: "Screening Officer",
-      organization,
-    };
+    setError("");
+    setLoading(true);
 
-    localStorage.setItem(
-      "trueid_user",
-      JSON.stringify(user)
-    );
-
-    localStorage.setItem(
-      "trueid_logged_in",
-      "true"
-    );
-
-    onLogin(user);
+    try {
+      const data = await signup(name, email, organization, password);
+      saveSession(data.token, data.user);
+      onLogin(data.user);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -185,8 +172,9 @@ function SignUp({ onNavigate, onLogin }) {
           <button
             type="submit"
             className="auth-submit-button"
+            disabled={loading}
           >
-            <span>CREATE ACCOUNT</span>
+            <span>{loading ? "CREATING..." : "CREATE ACCOUNT"}</span>
             <span>→</span>
           </button>
 
