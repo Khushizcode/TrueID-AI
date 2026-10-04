@@ -1,12 +1,14 @@
 import React, { useState } from "react";
+import { login, saveSession } from "../services/api";
 
 function SignIn({ onNavigate, onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     if (!email || !password) {
@@ -14,28 +16,18 @@ function SignIn({ onNavigate, onLogin }) {
       return;
     }
 
-    const savedUser = JSON.parse(
-      localStorage.getItem("trueid_user")
-    );
+    setError("");
+    setLoading(true);
 
-    const user = savedUser || {
-      name: "TrueID Officer",
-      email,
-      role: "Screening Officer",
-      organization: "TrueID AI",
-    };
-
-    localStorage.setItem(
-      "trueid_user",
-      JSON.stringify({
-        ...user,
-        email,
-      })
-    );
-
-    localStorage.setItem("trueid_logged_in", "true");
-
-    onLogin(user);
+    try {
+      const data = await login(email, password);
+      saveSession(data.token, data.user);
+      onLogin(data.user);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleForgotPassword = () => {
@@ -147,8 +139,9 @@ function SignIn({ onNavigate, onLogin }) {
           <button
             type="submit"
             className="auth-submit-button"
+            disabled={loading}
           >
-            <span>SIGN IN</span>
+            <span>{loading ? "SIGNING IN..." : "SIGN IN"}</span>
             <span>→</span>
           </button>
 

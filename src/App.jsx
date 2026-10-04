@@ -14,6 +14,8 @@ import Result from "./pages/Result";
 import DocumentUpload from "./components/DocumentUpload";
 import CameraScanner from "./components/CameraScanner";
 
+import { clearSession } from "./services/api";
+
 import "./App.css";
 
 function getSavedUser() {
@@ -67,6 +69,18 @@ function App() {
     }
   }, [isLoggedIn, currentPage]);
 
+  useEffect(() => {
+    const onForcedLogout = () => {
+      setIsLoggedIn(false);
+      setCurrentPage("welcome");
+    };
+
+    window.addEventListener("trueid-logout", onForcedLogout);
+
+    return () =>
+      window.removeEventListener("trueid-logout", onForcedLogout);
+  }, []);
+
   const goToPage = (page) => {
     setCurrentPage(page);
   };
@@ -86,7 +100,7 @@ function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("trueid_logged_in");
+    clearSession();
 
     setIsLoggedIn(false);
 
